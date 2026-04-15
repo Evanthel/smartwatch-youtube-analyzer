@@ -143,6 +143,7 @@ Current safeguards:
 - templates with too little instruction text beyond the placeholders are rejected.
 
 For long videos, SmartWatch also compacts the transcript before sending it to Gemini by selecting the most relevant transcript chunks and keeping the prompt within a safer size budget.
+SmartWatch also requests a larger Gemini output budget, applies conservative Gemini 2.5 thinking budgets where supported, and retries once with a tighter completion prompt if Gemini stops because the response hit its output limit.
 
 Current default prompt template:
 
@@ -179,3 +180,12 @@ Known limitations and failure modes:
 - Custom prompt templates can reduce output quality if placeholders are omitted or instructions are too vague.
 - The extension currently prefers English tracks before other available languages, which may not match the spoken language of the video.
 - Very short, noisy, or auto-generated transcript fragments may be rejected as unusable content.
+
+## Changelog
+
+### Unreleased
+
+- Reduced cut-off analysis results on longer videos by increasing the Gemini output budget.
+- Added Gemini 2.5 thinking-budget configuration so more of the response budget is available for the visible analysis.
+- Added a one-time retry with a stricter completion prompt when Gemini reports `MAX_TOKENS`.
+- Added a user-facing error if the analysis still exceeds the output limit after retrying.

@@ -386,6 +386,7 @@ function toUserError(error) {
       case "LOW_QUALITY_TRANSCRIPT":
       case "EMPTY_MODEL_RESPONSE":
       case "INVALID_MODEL_RESPONSE":
+      case "OUTPUT_TOO_LONG":
         return error.message;
       default:
         return error.message || "Unexpected error occurred.";

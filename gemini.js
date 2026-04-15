@@ -5,6 +5,9 @@ const MIN_TEMPLATE_INSTRUCTION_LENGTH = 24;
 const MAX_TRANSCRIPT_CHARS = 24000;
 const CHUNK_TARGET_CHARS = 2200;
 const MAX_SELECTED_CHUNKS = 8;
+const MAX_OUTPUT_TOKENS = 8192;
+const FLASH_THINKING_BUDGET = 0;
+const PRO_THINKING_BUDGET = 128;
 const MIN_CLEAN_TRANSCRIPT_CHARS = 160;
 const MIN_CLEAN_TRANSCRIPT_WORDS = 30;
 export const DEFAULT_GOAL_PROMPT_TEMPLATE = `You are analyzing a YouTube video transcript in relation to user goals.
@@ -84,6 +87,12 @@ async function callGemini(prompt, apiKey, model = DEFAULT_MODEL) {
 
   const selectedModel = (model || "").trim() || DEFAULT_MODEL;
 
+  return requestGeminiCompletion(prompt, apiKey, selectedModel, { retryOnMaxTokens: true });
+}
+
+async function requestGeminiCompletion(prompt, apiKey, selectedModel, options = {}) {
+  const retryOnMaxTokens = options.retryOnMaxTokens === true;
+
   const response = await fetch(
     `${API_BASE}/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
@@ -91,10 +100,7 @@ async function callGemini(prompt, apiKey, model = DEFAULT_MODEL) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 3072
-        }
+        generationConfig: buildGenerationConfig(selectedModel)
       })
     }
   );
@@ -145,16 +151,69 @@ async function callGemini(prompt, apiKey, model = DEFAULT_MODEL) {
     throw new SmartWatchError("INVALID_MODEL_RESPONSE", "Gemini returned a non-JSON response.");
   }
 
-  const text = data?.candidates?.[0]?.content?.parts
+  const candidate = data?.candidates?.[0];
+  const text = candidate?.content?.parts
     ?.map((part) => part.text || "")
     .join("\n")
     .trim();
+
+  if (candidate?.finishReason === "MAX_TOKENS") {
+    if (retryOnMaxTokens) {
+      return requestGeminiCompletion(buildConciseRetryPrompt(prompt), apiKey, selectedModel, {
+        retryOnMaxTokens: false
+      });
+    }
+
+    throw new SmartWatchError(
+      "OUTPUT_TOO_LONG",
+      "Gemini stopped because the analysis exceeded the output limit. Try a shorter prompt template or a more focused goal."
+    );
+  }
 
   if (!text) {
     throw new SmartWatchError("EMPTY_MODEL_RESPONSE", "Gemini returned an empty response.");
   }
 
   return text;
+}
+
+function buildGenerationConfig(model) {
+  const generationConfig = {
+    temperature: 0.3,
+    maxOutputTokens: MAX_OUTPUT_TOKENS
+  };
+
+  const thinkingBudget = getThinkingBudgetForModel(model);
+  if (thinkingBudget !== null) {
+    generationConfig.thinkingConfig = { thinkingBudget };
+  }
+
+  return generationConfig;
+}
+
+function getThinkingBudgetForModel(model) {
+  const normalizedModel = (model || "").toLowerCase();
+
+  if (!normalizedModel.includes("gemini-2.5-")) {
+    return null;
+  }
+
+  if (normalizedModel.includes("flash")) {
+    return FLASH_THINKING_BUDGET;
+  }
+
+  if (normalizedModel.includes("pro")) {
+    return PRO_THINKING_BUDGET;
+  }
+
+  return null;
+}
+
+function buildConciseRetryPrompt(originalPrompt) {
+  return `${originalPrompt}
+
+The previous answer exceeded the output budget. Return a complete, concise analysis under 700 words.
+Include all requested sections, especially risks/caveats/blind spots. Do not trail off mid-sentence.`;
 }
 
 function summarizeGeminiError(errorText) {

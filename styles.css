@@ -201,6 +201,13 @@ textarea {
   color: rgba(243, 241, 237, 0.52);
 }
 
+.disclosure-text {
+  margin: -4px 0 0;
+  color: rgba(243, 241, 237, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .primary-btn {
   min-height: 44px;
   border-radius: 12px;

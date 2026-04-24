@@ -1,18 +1,20 @@
-# Privacy Note for SmartWatch
+# Privacy Policy for SmartWatch
 
 ## Summary
 
-SmartWatch analyzes YouTube video transcripts against a goal you enter in the extension UI.
+SmartWatch analyzes the transcript of the currently open YouTube watch page against a goal you enter in the extension UI.
+
+SmartWatch only operates on YouTube watch pages with accessible transcript or caption data. It does not intentionally collect browsing history outside supported YouTube watch pages.
 
 ## Data We Process
 
 SmartWatch can process:
 
-- your Gemini API key,
-- the Gemini model setting configured in Advanced settings,
-- the goal text you type into the extension,
-- the URL and video ID of the active YouTube watch page,
-- transcript text retrieved from YouTube captions or the YouTube page DOM.
+- Authentication information: your Gemini API key.
+- User-provided content: the goal text you type into the extension and any custom prompt template you configure.
+- Settings data: the Gemini model setting configured in Advanced settings.
+- Web browsing activity: whether the active tab is a supported YouTube watch page, plus the URL and video ID of that current YouTube watch page.
+- Website content: transcript text retrieved from YouTube captions or the YouTube page DOM for the current video.
 
 ## How Data Is Used
 
@@ -44,15 +46,22 @@ to Google Gemini through the Generative Language API.
 
 Your use of Gemini is also governed by [Google’s terms and privacy policies](https://policies.google.com/).
 
+## Limited Use
+
+The use of information received from Google APIs will adhere to the Chrome Web Store User Data Policy, including the Limited Use requirements.
+
+SmartWatch uses data only to provide or improve its single purpose: analyzing the transcript of the current YouTube video against your stated goal. SmartWatch does not sell personal data, transfer data to advertising networks or data brokers, use data for personalized advertising, or use data to determine creditworthiness or lending eligibility.
+
 ## User Responsibility and Output Risk
 
 - You are responsible for the prompts, goals, API key, custom templates, model settings, and any other input sent through the extension.
 - You are responsible for reviewing and using the model output.
 - Model output may be inaccurate, incomplete, biased, or misleading.
-- The project author does not take accountability for generated content, decisions made from it, or downstream use of the response.
+- The developer does not control or pre-review Gemini responses to user prompts.
 - Do not submit secrets, confidential business data, or sensitive personal information unless you accept the risk of sending that content to Gemini.
 - This tool is not legal, medical, financial, compliance, or other professional advice, and it should not be used as the sole basis for high-stakes or safety-critical decisions.
 - You are responsible for ensuring that your use of YouTube content, transcripts, and generated outputs complies with applicable laws, platform terms, and any relevant rights or permissions.
+- By using SmartWatch, you confirm that you are old enough to use Chrome, YouTube, Google Gemini or Google AI Studio, and Chrome Web Store extensions in your jurisdiction.
 
 ## What We Do Not Do
 
@@ -69,15 +78,20 @@ The extension does not:
 
 SmartWatch requests these Chrome permissions:
 
-- `activeTab` to access the current tab context
-- `storage` to save settings locally
-- `scripting` to run transcript extraction fallback logic in the current tab
-- `sidePanel` to display the extension UI
-- `webNavigation` to keep side panel availability synchronized with tab navigation
+- `activeTab`: reads the active tab context so SmartWatch can confirm the current page is a YouTube watch page.
+- `storage`: stores your Gemini API key, selected model, saved goal, and custom prompt template locally in Chrome extension storage.
+- `scripting`: injects the content script when needed so transcript extraction can run on the current YouTube watch page.
+- `sidePanel`: displays the SmartWatch user interface in Chrome's side panel.
+- `webNavigation`: keeps side panel availability synchronized as YouTube changes videos through in-page navigation.
+- `https://www.youtube.com/*` and `https://m.youtube.com/*`: limits transcript detection and extraction to YouTube pages.
 
 ## Retention
 
 Locally stored values remain on the device until you change them, remove the extension, or clear extension storage.
+
+## Support
+
+For support, questions, or policy/contact context, use the developer profile at [linkedin.com/in/piotr-obiegly](https://www.linkedin.com/in/piotr-obiegly).
 
 ## Repository Scope
 

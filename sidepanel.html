@@ -45,6 +45,9 @@
             maxlength="300"
             placeholder=""
           ></textarea>
+          <p class="disclosure-text">
+            When you click Analyze, SmartWatch reads the current YouTube video transcript and sends it with your goal to Google Gemini using your API key.
+          </p>
           <button id="analyzeBtn" class="primary-btn">Analyze</button>
           <p id="ctaStatus" class="status-line" aria-live="polite"></p>
         </div>
@@ -63,6 +66,9 @@
             <p class="section-label">AI Model</p>
             <label id="apiKeyLabel" class="field-label" for="apiKey">Gemini API Key</label>
             <input id="apiKey" type="password" placeholder="Paste your API key" />
+            <p class="disclosure-text">
+              Your API key is stored locally in Chrome extension storage and used only to call Gemini from this extension.
+            </p>
           </div>
 
           <button id="saveSettingsBtn" class="primary-btn" type="button">Save settings</button>

@@ -6,6 +6,8 @@ Single purpose: SmartWatch analyzes the transcript of the currently open YouTube
 
 SmartWatch only operates on YouTube watch pages with accessible transcript or caption data. When you click `Analyze`, it reads the current video's transcript and sends the transcript plus your goal to Google Gemini using your API key.
 
+Available on the Chrome Web Store: [SmartWatch](https://chromewebstore.google.com/detail/smartwatch/fopiegopbjbnjkdddkebeopmjmkclbda)
+
 I use this extension myself, so the project is still evolving in practical ways.
 For the time being, I may continue updating transcript fallbacks, fixing errors, and improving reliability as YouTube and model behavior change.
 

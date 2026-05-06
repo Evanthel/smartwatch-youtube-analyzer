@@ -4,10 +4,10 @@
   "description": "Analyze YouTube videos against your goals with Gemini.",
   "version": "1.0.0",
   "icons": {
-    "16": "smartwatch_extension.png",
-    "32": "smartwatch_extension.png",
-    "48": "smartwatch_extension.png",
-    "128": "smartwatch_extension.png"
+    "16": "smartwatch_icon.png",
+    "32": "smartwatch_icon.png",
+    "48": "smartwatch_icon.png",
+    "128": "smartwatch_icon.png"
   },
   "permissions": ["activeTab", "storage", "scripting", "sidePanel", "webNavigation"],
   "host_permissions": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
@@ -17,8 +17,8 @@
   "action": {
     "default_title": "Open SmartWatch",
     "default_icon": {
-      "16": "smartwatch_extension.png",
-      "32": "smartwatch_extension.png"
+      "16": "smartwatch_icon.png",
+      "32": "smartwatch_icon.png"
     }
   },
   "side_panel": {

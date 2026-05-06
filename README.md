@@ -1,8 +1,6 @@
 # SmartWatch
 
-![SmartWatch](SmartWatch.png)
-
-Single purpose: SmartWatch analyzes the transcript of the currently open YouTube watch page against a goal you enter and returns a Gemini-generated analysis in the side panel.
+![SmartWatch](smartwach_gh_hero.png)
 
 SmartWatch only operates on YouTube watch pages with accessible transcript or caption data. When you click `Analyze`, it reads the current video's transcript and sends the transcript plus your goal to Google Gemini using your API key.
 

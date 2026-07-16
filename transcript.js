@@ -185,7 +185,7 @@ async function downloadFromPageContext(tabId) {
   }
 }
 
-function orderTracksByPreference(tracks) {
+export function orderTracksByPreference(tracks) {
   const preferred = [];
   const english = tracks.filter((t) => t.languageCode === "en");
   const englishVariants = tracks.filter((t) => t.languageCode?.startsWith("en-"));
@@ -226,7 +226,7 @@ async function downloadTrackTranscript(baseUrl) {
   throw new Error(lastError || "Transcript unavailable for this video.");
 }
 
-function buildCaptionUrlCandidates(baseUrl) {
+export function buildCaptionUrlCandidates(baseUrl) {
   const base = new URL(baseUrl);
   const original = new URL(base.toString());
 
@@ -262,7 +262,7 @@ async function downloadViaTimedtextFallback(videoId, tracks) {
   return "";
 }
 
-function buildTimedtextCandidates(videoId, track) {
+export function buildTimedtextCandidates(videoId, track) {
   const lang = track?.languageCode || "";
   const name = track?.name?.simpleText || track?.name?.runs?.map((x) => x?.text || "").join("") || "";
   const kind = track?.kind || "";
@@ -310,7 +310,7 @@ function buildTimedtextCandidates(videoId, track) {
   return Array.from(new Set(candidates));
 }
 
-function parseCaptionPayload(raw) {
+export function parseCaptionPayload(raw) {
   try {
     const data = JSON.parse(raw);
     const jsonTranscript = extractTranscriptFromJson3(data);
@@ -328,22 +328,25 @@ function parseCaptionPayload(raw) {
   return "";
 }
 
-function extractTranscriptFromJson3(data) {
+export function extractTranscriptFromJson3(data) {
   const events = Array.isArray(data?.events) ? data.events : [];
   const lines = [];
-  const decoder = document.createElement("textarea");
 
   for (const event of events) {
     if (!Array.isArray(event?.segs)) continue;
     const rawLine = event.segs.map((seg) => seg.utf8 || "").join("");
-    const cleanLine = decodeEntities(rawLine, decoder).replace(/\s+/g, " ").trim();
+    const cleanLine = decodeHtmlEntities(rawLine).replace(/\s+/g, " ").trim();
     if (cleanLine) lines.push(cleanLine);
   }
 
   return lines.join("\n").trim();
 }
 
-function extractTranscriptFromXml(xmlText) {
+export function extractTranscriptFromXml(xmlText) {
+  if (typeof DOMParser === "undefined") {
+    return extractTranscriptFromXmlText(xmlText);
+  }
+
   const parser = new DOMParser();
   const xml = parser.parseFromString(xmlText, "text/xml");
   if (xml.querySelector("parsererror")) return "";
@@ -358,7 +361,20 @@ function extractTranscriptFromXml(xmlText) {
   return lines.join("\n").trim();
 }
 
-function extractTranscriptFromVtt(vttText) {
+function extractTranscriptFromXmlText(xmlText) {
+  const textNodes = String(xmlText || "").matchAll(/<(text|p)\b[^>]*>([\s\S]*?)<\/\1>/gi);
+  const lines = [];
+
+  for (const match of textNodes) {
+    const rawText = match[2].replace(/<[^>]+>/g, "");
+    const cleanLine = decodeHtmlEntities(rawText).replace(/\s+/g, " ").trim();
+    if (cleanLine) lines.push(cleanLine);
+  }
+
+  return lines.join("\n").trim();
+}
+
+export function extractTranscriptFromVtt(vttText) {
   if (!vttText.includes("WEBVTT")) return "";
 
   const lines = vttText
@@ -376,12 +392,37 @@ function extractTranscriptFromVtt(vttText) {
   return lines.join("\n").replace(/\s+/g, " ").trim();
 }
 
-function decodeEntities(text, decoder) {
-  decoder.innerHTML = text;
-  return decoder.value;
+export function decodeHtmlEntities(text) {
+  if (typeof document !== "undefined") {
+    const decoder = document.createElement("textarea");
+    decoder.innerHTML = text;
+    return decoder.value;
+  }
+
+  return String(text || "")
+    .replace(/&#(\d+);/g, (match, code) => decodeCodePoint(match, code, 10))
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => decodeCodePoint(match, code, 16))
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }
 
-function extractPlayerResponse(html) {
+function decodeCodePoint(fallback, code, radix) {
+  const codePoint = Number.parseInt(code, radix);
+  if (!Number.isInteger(codePoint)) return fallback;
+
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+export function extractPlayerResponse(html) {
   const marker = "ytInitialPlayerResponse = ";
   const markerIndex = html.indexOf(marker);
 
@@ -398,7 +439,7 @@ function extractPlayerResponse(html) {
   return JSON.parse(jsonText);
 }
 
-function extractBalancedJson(text, startIndex) {
+export function extractBalancedJson(text, startIndex) {
   let depth = 0;
   let inString = false;
   let escaped = false;

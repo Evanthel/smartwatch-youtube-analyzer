@@ -59,7 +59,7 @@ export async function analyzeTranscriptWithTemplate(
   return callGemini(prompt, apiKey, model);
 }
 
-function buildPromptFromTemplate(template, transcript, goals) {
+export function buildPromptFromTemplate(template, transcript, goals) {
   const preparedTranscript = prepareTranscriptForPrompt(transcript, goals);
   const withGoals = template.replaceAll("${goals}", goals);
   const withTranscript = withGoals.replaceAll("${transcript}", preparedTranscript);
@@ -107,36 +107,7 @@ async function requestGeminiCompletion(prompt, apiKey, selectedModel, options = 
 
   if (!response.ok) {
     const errorText = await response.text();
-    const compactError = summarizeGeminiError(errorText);
-
-    if (response.status === 401 || response.status === 403) {
-      throw new SmartWatchError("BAD_API_KEY", "Your API key is invalid.");
-    }
-    if (response.status === 429) {
-      throw new SmartWatchError(
-        "QUOTA_EXCEEDED",
-        `Gemini quota/rate limit exceeded for model ${selectedModel}.`
-      );
-    }
-    if (looksLikeModelUnavailable(response.status, compactError)) {
-      throw new SmartWatchError(
-        "MODEL_UNAVAILABLE",
-        `The selected model "${selectedModel}" is unavailable.`
-      );
-    }
-    if (looksLikeInputTooLarge(response.status, compactError)) {
-      throw new SmartWatchError(
-        "INPUT_TOO_LARGE",
-        "The transcript is still too large for this model. Try a shorter video or a more compact prompt."
-      );
-    }
-
-    throw new SmartWatchError(
-      "GEMINI_REQUEST_FAILED",
-      compactError
-        ? `Gemini request failed (${response.status}): ${compactError}`
-        : `Gemini request failed (${response.status}).`
-    );
+    throw buildGeminiRequestError(response.status, errorText, selectedModel);
   }
 
   const raw = await response.text();
@@ -177,7 +148,7 @@ async function requestGeminiCompletion(prompt, apiKey, selectedModel, options = 
   return text;
 }
 
-function buildGenerationConfig(model) {
+export function buildGenerationConfig(model) {
   const generationConfig = {
     temperature: 0.3,
     maxOutputTokens: MAX_OUTPUT_TOKENS
@@ -191,7 +162,7 @@ function buildGenerationConfig(model) {
   return generationConfig;
 }
 
-function getThinkingBudgetForModel(model) {
+export function getThinkingBudgetForModel(model) {
   const normalizedModel = (model || "").toLowerCase();
 
   if (!normalizedModel.includes("gemini-2.5-")) {
@@ -209,14 +180,14 @@ function getThinkingBudgetForModel(model) {
   return null;
 }
 
-function buildConciseRetryPrompt(originalPrompt) {
+export function buildConciseRetryPrompt(originalPrompt) {
   return `${originalPrompt}
 
 The previous answer exceeded the output budget. Return a complete, concise analysis under 700 words.
 Include all requested sections, especially risks/caveats/blind spots. Do not trail off mid-sentence.`;
 }
 
-function summarizeGeminiError(errorText) {
+export function summarizeGeminiError(errorText) {
   if (!errorText) return "";
 
   try {
@@ -226,6 +197,39 @@ function summarizeGeminiError(errorText) {
   } catch (_error) {
     return errorText.trim().replace(/\s+/g, " ").slice(0, 240);
   }
+}
+
+export function buildGeminiRequestError(status, errorText, selectedModel) {
+  const compactError = summarizeGeminiError(errorText);
+
+  if (status === 401 || status === 403) {
+    return new SmartWatchError("BAD_API_KEY", "Your API key is invalid.");
+  }
+  if (status === 429) {
+    return new SmartWatchError(
+      "QUOTA_EXCEEDED",
+      `Gemini quota/rate limit exceeded for model ${selectedModel}.`
+    );
+  }
+  if (looksLikeModelUnavailable(status, compactError)) {
+    return new SmartWatchError(
+      "MODEL_UNAVAILABLE",
+      `The selected model "${selectedModel}" is unavailable.`
+    );
+  }
+  if (looksLikeInputTooLarge(status, compactError)) {
+    return new SmartWatchError(
+      "INPUT_TOO_LARGE",
+      "The transcript is still too large for this model. Try a shorter video or a more compact prompt."
+    );
+  }
+
+  return new SmartWatchError(
+    "GEMINI_REQUEST_FAILED",
+    compactError
+      ? `Gemini request failed (${status}): ${compactError}`
+      : `Gemini request failed (${status}).`
+  );
 }
 
 export function normalizeTemplate(template) {
@@ -261,7 +265,7 @@ export function validateGoalPromptTemplate(template) {
   }
 }
 
-function prepareTranscriptForPrompt(transcript, goals) {
+export function prepareTranscriptForPrompt(transcript, goals) {
   const cleanedTranscript = cleanTranscriptForPrompt(transcript);
   assertTranscriptQuality(cleanedTranscript);
 
@@ -284,7 +288,7 @@ function prepareTranscriptForPrompt(transcript, goals) {
   return compactTranscript.slice(0, MAX_TRANSCRIPT_CHARS).trim();
 }
 
-function splitTranscriptIntoChunks(transcript, targetChars) {
+export function splitTranscriptIntoChunks(transcript, targetChars) {
   const lines = transcript
     .split(/\r?\n+/)
     .map((line) => line.trim())
@@ -314,7 +318,7 @@ function splitTranscriptIntoChunks(transcript, targetChars) {
   return chunks;
 }
 
-function selectRelevantChunks(chunks, goals, limit) {
+export function selectRelevantChunks(chunks, goals, limit) {
   const goalTerms = buildGoalTerms(goals);
   const scored = chunks.map((chunk, index) => ({
     chunk,
@@ -334,7 +338,7 @@ function selectRelevantChunks(chunks, goals, limit) {
   return chunks.filter((_chunk, index) => selectedIndices.has(index));
 }
 
-function buildGoalTerms(goals) {
+export function buildGoalTerms(goals) {
   return new Set(
     (goals || "")
       .toLowerCase()
@@ -344,7 +348,7 @@ function buildGoalTerms(goals) {
   );
 }
 
-function scoreChunk(chunk, goalTerms) {
+export function scoreChunk(chunk, goalTerms) {
   if (goalTerms.size === 0) return 0;
 
   const lowerChunk = chunk.toLowerCase();
@@ -359,7 +363,7 @@ function scoreChunk(chunk, goalTerms) {
   return score;
 }
 
-function cleanTranscriptForPrompt(transcript) {
+export function cleanTranscriptForPrompt(transcript) {
   const lines = (transcript || "")
     .split(/\r?\n+/)
     .map((line) => normalizeTranscriptLine(line))
@@ -389,7 +393,7 @@ function cleanTranscriptForPrompt(transcript) {
   return dedupedLines.join("\n").trim();
 }
 
-function normalizeTranscriptLine(line) {
+export function normalizeTranscriptLine(line) {
   return (line || "")
     .replace(/\[(music|applause|laughter|foreign|inaudible)[^\]]*\]/gi, " ")
     .replace(/\((music|applause|laughter|foreign|inaudible)[^)]*\)/gi, " ")
@@ -397,7 +401,7 @@ function normalizeTranscriptLine(line) {
     .trim();
 }
 
-function isObviousTranscriptNoise(line) {
+export function isObviousTranscriptNoise(line) {
   const normalized = line.toLowerCase();
 
   if (!normalized) return true;
@@ -418,7 +422,7 @@ function isObviousTranscriptNoise(line) {
   );
 }
 
-function assertTranscriptQuality(transcript) {
+export function assertTranscriptQuality(transcript) {
   const normalizedTranscript = (transcript || "").trim();
   const words = normalizedTranscript.split(/\s+/).filter(Boolean);
   const uniqueTerms = new Set(
@@ -437,7 +441,7 @@ function assertTranscriptQuality(transcript) {
   }
 }
 
-function looksLikeModelUnavailable(status, message) {
+export function looksLikeModelUnavailable(status, message) {
   if (status !== 400 && status !== 404) return false;
   const normalized = (message || "").toLowerCase();
   return (
@@ -449,7 +453,7 @@ function looksLikeModelUnavailable(status, message) {
   );
 }
 
-function looksLikeInputTooLarge(status, message) {
+export function looksLikeInputTooLarge(status, message) {
   if (status !== 400 && status !== 413) return false;
   const normalized = (message || "").toLowerCase();
   return (

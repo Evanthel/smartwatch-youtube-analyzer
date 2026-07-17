@@ -6,7 +6,7 @@
 
 **Available on the Chrome Web Store: [SmartWatch](https://chromewebstore.google.com/detail/smartwatch/fopiegopbjbnjkdddkebeopmjmkclbda)**
 
-SmartWatch analyzes YouTube videos against your goals. When you click `Analyze`, it reads accessible transcript or caption data from the current YouTube watch page and sends the transcript plus your goal to Google Gemini using your API key.
+SmartWatch analyzes YouTube videos against your goals. When the side panel opens, it prepares accessible transcript or caption data from the current YouTube watch page and keeps the cleaned transcript in browser-session storage for faster reuse. Only when you click `Analyze` does it send the transcript plus your goal to Google Gemini using your API key.
 
 I use this extension myself, so the project is still evolving in practical ways.
 For the time being, I may continue updating transcript fallbacks, fixing errors, and improving reliability as YouTube and model behavior change.
@@ -31,12 +31,14 @@ More details: [Chrome Extensions Documentation](https://developer.chrome.com/doc
 
 1. Open a YouTube watch page.
 2. Open the SmartWatch side panel from the extension action.
+   SmartWatch starts preparing the current transcript locally in the background.
 3. Open `Settings`.
 4. Paste your `Gemini API Key` and click `Save settings`.
 5. Optionally open `Advanced`, pick a Gemini model preset, or choose `Custom` and enter a model string manually.
 6. Enter or edit your goal in the main view.
-7. Click `Analyze`.
-8. Read the result in `Results`.
+7. If transcript preparation fails, use `Retry transcript`, or continue with `Analyze` to retry automatically.
+8. Click `Analyze`. If the transcript is already prepared, analysis can start without fetching it again.
+9. Read the result in `Results`.
 
 ## Why Gemini
 
@@ -54,11 +56,21 @@ Run the native Node.js test runner:
 npm test
 ```
 
+To run the tests and create a verified Chrome Web Store archive in `dist/`:
+
+```bash
+npm run package
+```
+
 ## Documentation
 
 - [Technical notes](docs/TECHNICAL.md): architecture, analysis flow, advanced settings, limitations, and changelog.
 - [Legal and safety notes](docs/LEGAL.md): data handling, permissions, disclaimer, and acceptable use.
 - [Privacy policy](PRIVACY.md): repository privacy policy.
+
+## Credits
+
+- App icon: <a href="https://www.flaticon.com/free-icons/question" title="question icons">Question icons created by sonnycandra - Flaticon</a>
 
 ## Support
 

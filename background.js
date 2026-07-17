@@ -79,6 +79,31 @@ async function setPanelForTab(tabId, url) {
   } catch (error) {
     console.error("Failed to update side panel options:", error);
   }
+
+  await notifyVideoContextChanged(tabId, url, isWatchPage);
+}
+
+async function notifyVideoContextChanged(tabId, url, isWatchPage) {
+  let videoId = "";
+
+  if (isWatchPage) {
+    try {
+      videoId = new URL(url).searchParams.get("v") || "";
+    } catch (_error) {
+      videoId = "";
+    }
+  }
+
+  try {
+    await chrome.runtime.sendMessage({
+      type: "ACTIVE_VIDEO_CHANGED",
+      tabId,
+      videoId,
+      isWatchPage
+    });
+  } catch (_error) {
+    // The side panel is usually closed, so no extension page may be listening.
+  }
 }
 
 function isWatchPageUrl(url) {
@@ -86,8 +111,7 @@ function isWatchPageUrl(url) {
 
   try {
     const parsed = new URL(url);
-    const isYouTubeHost =
-      parsed.hostname === "www.youtube.com" || parsed.hostname === "m.youtube.com";
+    const isYouTubeHost = parsed.hostname === "www.youtube.com";
 
     return isYouTubeHost && parsed.pathname === "/watch" && parsed.searchParams.has("v");
   } catch (_error) {

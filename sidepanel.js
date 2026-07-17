@@ -6,10 +6,18 @@ import {
   SmartWatchError
 } from "./gemini.js";
 import { getTranscript } from "./transcript.js";
+import { TranscriptCache } from "./transcript-cache.js";
+import { prepareTranscriptForCache } from "./transcript-processing.js";
+import {
+  getTranscriptRecordForAnalysis,
+  isCurrentPrefetchResult,
+  isSameVideoContext
+} from "./transcript-workflow.js";
 
 const DEFAULT_GOALS_TEXT = "Find actionable productivity ideas I can apply this week";
 
 const analyzeBtn = document.getElementById("analyzeBtn");
+const retryTranscriptBtn = document.getElementById("retryTranscriptBtn");
 const analysisOutput = document.getElementById("analysisOutput");
 const goalsInput = document.getElementById("goalsInput");
 const ctaStatus = document.getElementById("ctaStatus");
@@ -29,6 +37,28 @@ const MODEL_PRESETS = new Set(["gemini-2.5-flash", "gemini-2.5-pro"]);
 
 let lastOutputMarkdown = "";
 let lastAnalyzeButtonLabel = analyzeBtn.textContent;
+let activeVideoContext = null;
+let transcriptContextGeneration = 0;
+let transcriptUiState = { state: "idle", videoId: "" };
+let isAnalyzing = false;
+
+const transcriptCache = new TranscriptCache({
+  storageArea: chrome.storage.session,
+  fetchTranscript: fetchTranscriptForCache,
+  prepareTranscript: prepareTranscriptForCache
+});
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type !== "ACTIVE_VIDEO_CHANGED") return;
+  const announcedVideoId = message.isWatchPage ? message.videoId || "" : "";
+  const announcedContextChanged =
+    activeVideoContext?.tabId !== message.tabId || activeVideoContext?.videoId !== announcedVideoId;
+  if (announcedContextChanged) {
+    // Invalidate the current request before the asynchronous tab lookup can finish.
+    transcriptContextGeneration += 1;
+  }
+  void refreshActiveVideoAndPrefetch(message.tabId);
+});
 
 init();
 
@@ -65,6 +95,10 @@ async function init() {
   modelPresetSelect.addEventListener("change", updateModelUi);
   saveSettingsBtn.addEventListener("click", saveSettings);
   analyzeBtn.addEventListener("click", onAnalyze);
+  retryTranscriptBtn.addEventListener("click", retryTranscriptPrefetch);
+
+  void transcriptCache.prune();
+  void refreshActiveVideoAndPrefetch();
 }
 
 function toggleSettings() {
@@ -112,7 +146,11 @@ async function saveSettings() {
   }
 }
 
-async function getTranscriptWithFallback(videoId, tabId) {
+async function fetchTranscriptForCache(context, { allowDomFallback = false } = {}) {
+  return getTranscriptWithFallback(context.videoId, context.tabId, { allowDomFallback });
+}
+
+async function getTranscriptWithFallback(videoId, tabId, { allowDomFallback = true } = {}) {
   let transcript = "";
   let networkError = null;
 
@@ -124,6 +162,12 @@ async function getTranscriptWithFallback(videoId, tabId) {
 
   if (isUsableTranscript(transcript)) {
     return transcript;
+  }
+
+  if (!allowDomFallback) {
+    throw networkError instanceof Error
+      ? networkError
+      : new Error("Transcript unavailable for this video.");
   }
 
   if (!tabId) {
@@ -193,10 +237,37 @@ async function onAnalyze() {
       throw new Error("Enter your goals before analysis.");
     }
 
-    const transcript = await getTranscriptWithFallback(context.videoId, context.tabId);
-    console.debug("[SmartWatch] Transcript length:", transcript.length);
+    let transcriptRecord;
+    try {
+      transcriptRecord = await getPreparedTranscriptForAnalysis(context);
+      setTranscriptUiState("ready", context.videoId);
+    } catch (error) {
+      setTranscriptUiState("error", context.videoId);
+      throw error;
+    }
 
-    const analysis = await analyzeTranscriptWithTemplate(transcript, goals, apiKey, template, model);
+    const currentContext = await getCurrentVideoContext();
+    if (!isSameVideoContext(context, currentContext)) {
+      void refreshActiveVideoAndPrefetch();
+      throw new Error("The active YouTube video changed. Analyze the current video again.");
+    }
+
+    console.debug("[SmartWatch] Transcript length:", transcriptRecord.transcript.length);
+
+    const analysis = await analyzeTranscriptWithTemplate(
+      transcriptRecord.transcript,
+      goals,
+      apiKey,
+      template,
+      model
+    );
+
+    const completedContext = await getCurrentVideoContext();
+    if (!isSameVideoContext(context, completedContext)) {
+      void refreshActiveVideoAndPrefetch();
+      throw new Error("The active YouTube video changed during analysis. Analyze it again.");
+    }
+
     setOutputMarkdown(analysis);
     setCtaStatus("Analysis ready.", "status-success");
   } catch (error) {
@@ -207,6 +278,103 @@ async function onAnalyze() {
   } finally {
     clearLoading();
   }
+}
+
+async function getPreparedTranscriptForAnalysis(context) {
+  const prefetchAlreadyFailed =
+    transcriptUiState.state === "error" && transcriptUiState.videoId === context.videoId;
+
+  return getTranscriptRecordForAnalysis(transcriptCache, context, {
+    prefetchFailed: prefetchAlreadyFailed
+  });
+}
+
+async function refreshActiveVideoAndPrefetch(expectedTabId = null, { force = false } = {}) {
+  const context = await getCurrentVideoContext();
+
+  if (Number.isInteger(expectedTabId) && context.tabId !== expectedTabId) {
+    return;
+  }
+
+  const sameVideo = isSameVideoContext(activeVideoContext, context);
+  if (!force && sameVideo && transcriptUiState.state !== "idle") {
+    return;
+  }
+
+  activeVideoContext = context;
+  const generation = ++transcriptContextGeneration;
+
+  if (!context.isWatchPage || !context.videoId) {
+    setTranscriptUiState("idle", "");
+    return;
+  }
+
+  setTranscriptUiState("loading", context.videoId);
+  console.debug("[SmartWatch] Transcript prefetch started.", {
+    videoId: context.videoId,
+    tabId: context.tabId
+  });
+
+  try {
+    const record = await transcriptCache.prefetch(context, { forceRefresh: force });
+    if (!isCurrentPrefetch(generation, record.videoId)) return;
+    console.debug("[SmartWatch] Transcript prefetch ready.", {
+      videoId: record.videoId,
+      transcriptLength: record.transcript.length
+    });
+    setTranscriptUiState("ready", record.videoId);
+  } catch (error) {
+    if (!isCurrentPrefetch(generation, context.videoId)) return;
+    console.warn("[SmartWatch] Transcript prefetch failed; Analyze will retry.", {
+      videoId: context.videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    setTranscriptUiState("error", context.videoId);
+  }
+}
+
+async function retryTranscriptPrefetch() {
+  retryTranscriptBtn.disabled = true;
+  await refreshActiveVideoAndPrefetch(null, { force: true });
+}
+
+function isCurrentPrefetch(generation, videoId) {
+  return isCurrentPrefetchResult({
+    generation,
+    currentGeneration: transcriptContextGeneration,
+    activeVideoId: activeVideoContext?.videoId,
+    resultVideoId: videoId
+  });
+}
+
+function setTranscriptUiState(state, videoId) {
+  transcriptUiState = { state, videoId };
+  renderTranscriptStatus();
+}
+
+function renderTranscriptStatus() {
+  renderTranscriptRetryAction();
+  if (isAnalyzing) return;
+
+  switch (transcriptUiState.state) {
+    case "loading":
+      setCtaStatus("Preparing transcript…", "");
+      break;
+    case "ready":
+      setCtaStatus("Transcript ready.", "status-success");
+      break;
+    case "error":
+      setCtaStatus("Transcript couldn't be prepared. Retry now or Analyze to retry.", "");
+      break;
+    default:
+      setCtaStatus("", "");
+  }
+}
+
+function renderTranscriptRetryAction() {
+  const canRetry = !isAnalyzing && transcriptUiState.state === "error";
+  retryTranscriptBtn.classList.toggle("hidden", !canRetry);
+  retryTranscriptBtn.disabled = !canRetry;
 }
 
 function setOutputMarkdown(markdown) {
@@ -364,13 +532,17 @@ async function getCurrentVideoContext() {
 }
 
 function setLoading() {
+  isAnalyzing = true;
+  renderTranscriptRetryAction();
   analyzeBtn.disabled = true;
   analyzeBtn.textContent = "Analyzing...";
   analyzeBtn.setAttribute("aria-busy", "true");
-  setCtaStatus("Pulling transcript and generating the analysis.", "");
+  setCtaStatus("Preparing transcript and generating the analysis.", "");
 }
 
 function clearLoading() {
+  isAnalyzing = false;
+  renderTranscriptRetryAction();
   analyzeBtn.disabled = !goalsInput.value.trim();
   analyzeBtn.textContent = lastAnalyzeButtonLabel;
   analyzeBtn.removeAttribute("aria-busy");
@@ -424,11 +596,11 @@ function updateGoalUi() {
   analyzeBtn.disabled = !value;
 
   if (!value) {
-    setCtaStatus("", "");
+    renderTranscriptStatus();
     return;
   }
 
-  setCtaStatus("", "");
+  renderTranscriptStatus();
 }
 
 function setCtaStatus(message, className) {

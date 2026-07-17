@@ -6,6 +6,8 @@ SmartWatch analyzes the transcript of the currently open YouTube watch page agai
 
 SmartWatch only operates on YouTube watch pages with accessible transcript or caption data. It does not intentionally collect browsing history outside supported YouTube watch pages.
 
+When the side panel is open, SmartWatch may prepare and temporarily cache the current video's transcript locally. It does not send that transcript to Gemini until you click `Analyze`.
+
 ## Data We Process
 
 SmartWatch can process:
@@ -21,7 +23,7 @@ SmartWatch can process:
 The extension uses this data only to:
 
 - detect the current YouTube video,
-- retrieve transcript text,
+- retrieve, clean, validate, and temporarily cache transcript text in browser-session storage,
 - send the transcript and your goal to the Gemini API,
 - display the returned analysis in the side panel,
 - save your local settings and last goal for convenience.
@@ -34,6 +36,20 @@ The following values are stored locally in `chrome.storage.local`:
 - selected Gemini model setting
 - saved goal text
 - custom prompt template
+
+## Session Storage
+
+Prepared transcript text is stored locally in `chrome.storage.session` so the same video does not need to be fetched again for another goal during the browser session.
+
+The transcript cache:
+
+- is keyed by the current YouTube `videoId`,
+- expires entries after one hour,
+- keeps at most the five newest transcript records,
+- is cleared when the browser session ends,
+- is not synchronized to a project-owned server or account.
+
+Failed transcript retrieval and validation results are not stored in the transcript cache.
 
 ## Third-Party Processing
 
@@ -72,22 +88,24 @@ The extension does not:
 - sell personal data,
 - share data with advertising networks,
 - sync your settings to a project-owned cloud service,
+- persist cached transcripts across browser sessions,
 - intentionally collect browsing history outside supported YouTube pages.
 
 ## Permissions
 
 SmartWatch requests these Chrome permissions:
 
-- `activeTab`: reads the active tab context so SmartWatch can confirm the current page is a YouTube watch page.
-- `storage`: stores your Gemini API key, selected model, saved goal, and custom prompt template locally in Chrome extension storage.
+- `storage`: stores your Gemini API key, selected model, saved goal, and custom prompt template locally, and keeps prepared transcripts in browser-session storage for short-term reuse.
 - `scripting`: injects the content script when needed so transcript extraction can run on the current YouTube watch page.
 - `sidePanel`: displays the SmartWatch user interface in Chrome's side panel.
 - `webNavigation`: keeps side panel availability synchronized as YouTube changes videos through in-page navigation.
-- `https://www.youtube.com/*` and `https://m.youtube.com/*`: limits transcript detection and extraction to YouTube pages.
+- `https://www.youtube.com/*`: limits transcript detection and extraction to standard YouTube pages.
 
 ## Retention
 
-Locally stored values remain on the device until you change them, remove the extension, or clear extension storage.
+Settings stored in `chrome.storage.local` remain on the device until you change them, remove the extension, or clear extension storage.
+
+Prepared transcripts stored in `chrome.storage.session` expire after one hour, are limited to the five newest entries, and are cleared when the browser session ends.
 
 ## Support
 

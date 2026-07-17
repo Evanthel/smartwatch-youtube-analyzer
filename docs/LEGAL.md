@@ -6,9 +6,10 @@ See also the repository [privacy policy](../PRIVACY.md).
 
 - Authentication information: the Gemini API key is stored locally in `chrome.storage.local`.
 - User-provided content: the saved goal text and custom prompt template are stored locally in `chrome.storage.local`.
-- Website content: the extension reads transcript text from the current YouTube video when you click `Analyze`.
+- Website content: while the side panel is open, the extension may read, clean, validate, and temporarily cache transcript text from the current YouTube video in browser-session storage.
 - Web browsing activity: the extension checks whether the active tab is a supported YouTube watch page and reads the current YouTube URL/video ID for that feature.
-- During analysis, the current goal and retrieved transcript are sent to Google Gemini through the Generative Language API.
+- Prepared transcript cache entries expire after one hour, are limited to the five newest videos, and are cleared when the browser session ends.
+- Only after the user clicks `Analyze`, the current goal and retrieved transcript are sent to Google Gemini through the Generative Language API.
 - The extension does not send data to any project-owned backend because there is no project-owned server in this repository.
 - SmartWatch does not sell personal data, share data with advertising networks, or use data for creditworthiness or lending decisions.
 
@@ -16,12 +17,11 @@ See also the repository [privacy policy](../PRIVACY.md).
 
 SmartWatch requests these Chrome permissions:
 
-- `activeTab`: reads the active tab context so SmartWatch can confirm the current page is a YouTube watch page.
-- `storage`: stores your Gemini API key, selected model, saved goal, and custom prompt template locally in Chrome extension storage.
+- `storage`: stores your Gemini API key, selected model, saved goal, and custom prompt template locally, and keeps prepared transcripts in browser-session storage for short-term reuse.
 - `scripting`: injects the content script when needed so transcript extraction can run on the current YouTube watch page.
 - `sidePanel`: displays the SmartWatch user interface in Chrome's side panel.
 - `webNavigation`: keeps side panel availability synchronized as YouTube changes videos through in-page navigation.
-- `https://www.youtube.com/*` and `https://m.youtube.com/*`: limits transcript detection and extraction to YouTube pages.
+- `https://www.youtube.com/*`: limits transcript detection and extraction to standard YouTube pages.
 
 ## Disclaimer
 

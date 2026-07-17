@@ -234,6 +234,35 @@ textarea {
   cursor: default;
 }
 
+.secondary-btn {
+  min-height: 40px;
+  border: 1px solid rgba(243, 241, 237, 0.16);
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(243, 241, 237, 0.78);
+  font-size: 13px;
+  font-weight: 650;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 120ms ease,
+    opacity 140ms ease;
+}
+
+.secondary-btn:hover:enabled {
+  border-color: rgba(235, 123, 103, 0.58);
+  background: rgba(243, 241, 237, 0.04);
+}
+
+.secondary-btn:active:enabled {
+  transform: translateY(1px);
+}
+
+.secondary-btn:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
 .results-section {
   display: flex;
   flex-direction: column;

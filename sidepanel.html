@@ -46,9 +46,12 @@
             placeholder=""
           ></textarea>
           <p class="disclosure-text">
-            When you click Analyze, SmartWatch reads the current YouTube video transcript and sends it with your goal to Google Gemini using your API key.
+            SmartWatch prepares and temporarily caches the current transcript locally. Your goal and settings are stored in Chrome. Analyze sends only the transcript and current goal to Google Gemini. No data is sent to the developer.
           </p>
           <button id="analyzeBtn" class="primary-btn">Analyze</button>
+          <button id="retryTranscriptBtn" class="secondary-btn hidden" type="button">
+            Retry transcript
+          </button>
           <p id="ctaStatus" class="status-line" aria-live="polite"></p>
         </div>
 

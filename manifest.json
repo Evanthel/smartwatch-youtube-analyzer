@@ -2,15 +2,15 @@
   "manifest_version": 3,
   "name": "SmartWatch",
   "description": "Analyze YouTube videos against your goals with Gemini.",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "icons": {
     "16": "smartwatch_icon.png",
     "32": "smartwatch_icon.png",
     "48": "smartwatch_icon.png",
     "128": "smartwatch_icon.png"
   },
-  "permissions": ["activeTab", "storage", "scripting", "sidePanel", "webNavigation"],
-  "host_permissions": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
+  "permissions": ["storage", "scripting", "sidePanel", "webNavigation"],
+  "host_permissions": ["https://www.youtube.com/*"],
   "background": {
     "service_worker": "background.js"
   },
@@ -26,7 +26,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
+      "matches": ["https://www.youtube.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

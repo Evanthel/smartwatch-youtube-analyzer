@@ -1,3 +1,19 @@
+import { SmartWatchError } from "./errors.js";
+import {
+  cleanTranscriptForPrompt,
+  prepareTranscriptForCache,
+  splitTranscriptIntoChunks
+} from "./transcript-processing.js";
+
+export { SmartWatchError } from "./errors.js";
+export {
+  assertTranscriptQuality,
+  cleanTranscriptForPrompt,
+  isObviousTranscriptNoise,
+  normalizeTranscriptLine,
+  splitTranscriptIntoChunks
+} from "./transcript-processing.js";
+
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 export const DEFAULT_MODEL = "gemini-2.5-flash";
 const MIN_TEMPLATE_LENGTH = 80;
@@ -8,8 +24,6 @@ const MAX_SELECTED_CHUNKS = 8;
 const MAX_OUTPUT_TOKENS = 8192;
 const FLASH_THINKING_BUDGET = 0;
 const PRO_THINKING_BUDGET = 128;
-const MIN_CLEAN_TRANSCRIPT_CHARS = 160;
-const MIN_CLEAN_TRANSCRIPT_WORDS = 30;
 export const DEFAULT_GOAL_PROMPT_TEMPLATE = `You are analyzing a YouTube video transcript in relation to user goals.
 
 User goals:
@@ -25,14 +39,6 @@ Explain:
 4. Risks, caveats, or blind spots
 
 Keep the answer concise but complete. Use clear section headings.`;
-
-export class SmartWatchError extends Error {
-  constructor(code, message) {
-    super(message);
-    this.name = "SmartWatchError";
-    this.code = code;
-  }
-}
 
 /**
  * Analyzes a full transcript against user goals and returns focused recommendations.
@@ -266,8 +272,7 @@ export function validateGoalPromptTemplate(template) {
 }
 
 export function prepareTranscriptForPrompt(transcript, goals) {
-  const cleanedTranscript = cleanTranscriptForPrompt(transcript);
-  assertTranscriptQuality(cleanedTranscript);
+  const cleanedTranscript = prepareTranscriptForCache(transcript);
 
   if (cleanedTranscript.length <= MAX_TRANSCRIPT_CHARS) {
     return cleanedTranscript;
@@ -286,36 +291,6 @@ export function prepareTranscriptForPrompt(transcript, goals) {
   }
 
   return compactTranscript.slice(0, MAX_TRANSCRIPT_CHARS).trim();
-}
-
-export function splitTranscriptIntoChunks(transcript, targetChars) {
-  const lines = transcript
-    .split(/\r?\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length === 0) {
-    return [transcript];
-  }
-
-  const chunks = [];
-  let currentChunk = "";
-
-  for (const line of lines) {
-    const candidate = currentChunk ? `${currentChunk}\n${line}` : line;
-    if (candidate.length > targetChars && currentChunk) {
-      chunks.push(currentChunk);
-      currentChunk = line;
-      continue;
-    }
-    currentChunk = candidate;
-  }
-
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
 }
 
 export function selectRelevantChunks(chunks, goals, limit) {
@@ -361,84 +336,6 @@ export function scoreChunk(chunk, goalTerms) {
   }
 
   return score;
-}
-
-export function cleanTranscriptForPrompt(transcript) {
-  const lines = (transcript || "")
-    .split(/\r?\n+/)
-    .map((line) => normalizeTranscriptLine(line))
-    .filter(Boolean)
-    .filter((line) => !isObviousTranscriptNoise(line));
-
-  const dedupedLines = [];
-  const seenCounts = new Map();
-  let previousLine = "";
-
-  for (const line of lines) {
-    if (line === previousLine) {
-      continue;
-    }
-
-    const normalizedKey = line.toLowerCase();
-    const count = seenCounts.get(normalizedKey) || 0;
-    if (count >= 1 && line.length < 90) {
-      continue;
-    }
-
-    seenCounts.set(normalizedKey, count + 1);
-    dedupedLines.push(line);
-    previousLine = line;
-  }
-
-  return dedupedLines.join("\n").trim();
-}
-
-export function normalizeTranscriptLine(line) {
-  return (line || "")
-    .replace(/\[(music|applause|laughter|foreign|inaudible)[^\]]*\]/gi, " ")
-    .replace(/\((music|applause|laughter|foreign|inaudible)[^)]*\)/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function isObviousTranscriptNoise(line) {
-  const normalized = line.toLowerCase();
-
-  if (!normalized) return true;
-  if (/^(\d{1,2}:)?\d{1,2}:\d{2}$/.test(normalized)) return true;
-  if (normalized.length <= 2) return true;
-
-  return (
-    normalized === "transcript" ||
-    normalized === "show transcript" ||
-    normalized === "search in transcript" ||
-    normalized === "transcript search" ||
-    normalized === "subscribe" ||
-    normalized === "subtitles by" ||
-    normalized === "captions by" ||
-    normalized === "[music]" ||
-    normalized === "[applause]" ||
-    normalized === "[laughter]"
-  );
-}
-
-export function assertTranscriptQuality(transcript) {
-  const normalizedTranscript = (transcript || "").trim();
-  const words = normalizedTranscript.split(/\s+/).filter(Boolean);
-  const uniqueTerms = new Set(
-    words.map((word) => word.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, "")).filter(Boolean)
-  );
-
-  if (
-    normalizedTranscript.length < MIN_CLEAN_TRANSCRIPT_CHARS ||
-    words.length < MIN_CLEAN_TRANSCRIPT_WORDS ||
-    uniqueTerms.size < 12
-  ) {
-    throw new SmartWatchError(
-      "LOW_QUALITY_TRANSCRIPT",
-      "The transcript is empty or too low-quality to analyze reliably."
-    );
-  }
 }
 
 export function looksLikeModelUnavailable(status, message) {
